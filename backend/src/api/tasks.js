@@ -14,8 +14,10 @@ const checkAdmin = (req, res, next) => {
   next();
 };
 
+
+
 const getAllTasks = async (req, res) => {
-  const { status, sortBy, order = 'asc', page = 1, limit = 10 } = req.query;
+  const { status, sortBy, order = 'asc', page = 1, limit = 10, search } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
   const orderOptions = {
@@ -26,14 +28,51 @@ const getAllTasks = async (req, res) => {
 
   try {
     const tasks = await prisma.task.findMany({
-      where: status ? { status } : {},
+      where: {
+        ...(status && { status }), // Filter by status if provided
+        ...(search && { // Add search functionality
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } }, // Search in title
+            { description: { contains: search, mode: 'insensitive' } }, // Search in description
+            { userId: { equals: Number(search) } }, // Search by userId
+            { status: { contains: search, mode: 'insensitive' } }, // Search by status
+            { dueDate: {equals: new Date(search)} }, // Search by dueDate
+            { createdAt: {equals: new Date(search)} }, // Search by createdAt
+            { recurring: { contains: search, mode: 'insensitive' } }, // Search by recurring
+            { priority: { contains: search, mode: 'insensitive' } }, // Search by priority
+          ],
+        }),
+      },
       orderBy: {
         [orderOptions[sortBy] || 'createdAt']: order,
+        [orderOptions[sortBy] || 'status']: order,
+        [orderOptions[sortBy] || 'userId']: order,
+        [orderOptions[sortBy] || 'dueDate']: order,
+        [orderOptions[sortBy] || 'recurring']: order,
+        [orderOptions[sortBy] || 'priority']: order,
       },
       skip,
       take: Number(limit),
     });
-    const totalTasks = await prisma.task.count();
+
+    const totalTasks = await prisma.task.count({
+      where: {
+        ...(status && { status }),
+        ...(search && {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { userId: { equals: Number(search) } },
+            { status: { contains: search, mode: 'insensitive' } },
+            { dueDate: {equals: new Date(search)} },
+            { createdAt: {equals: new Date(search)} },
+            { recurring: { contains: search, mode: 'insensitive' } },
+            { priority: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      },
+    });
+
     res.json({
       tasks,
       page: Number(page),
@@ -45,6 +84,7 @@ const getAllTasks = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch tasks' });
   }
 };
+
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -69,7 +109,7 @@ const getTaskById = async (req, res) => {
 
 // Create a new task
 const createTask = async (req, res) => {
-  const { title, description, dueDate, status, userId } = req.body;
+  const { title, description, dueDate, status, userId,priority, recurring } = req.body;
   try {
     if (!title || !userId) {
       return res.status(400).json({ error: 'Title and User ID are required' });
@@ -87,6 +127,9 @@ const createTask = async (req, res) => {
         dueDate: parsedDueDate,
         status: status || 'pending',
         userId: Number(userId),
+        createdAt: new Date(),
+        recurring: recurring || 'none',
+        priority: priority || 'low',
       },
     });
 
@@ -100,7 +143,7 @@ const createTask = async (req, res) => {
 // Update a task by ID
 const updateTask = async (req, res) => {
   const { id } = req.params;
-  const { title, description, dueDate, status } = req.body;
+  const { title, description, dueDate, status,recurring,priority } = req.body;
 
   try {
     const existingTask = await prisma.task.findUnique({
@@ -117,6 +160,8 @@ const updateTask = async (req, res) => {
         description: description || existingTask.description,
         dueDate: dueDate ? new Date(dueDate) : existingTask.dueDate,
         status: status || existingTask.status,
+        recurring: recurring || existingTask.recurring,
+        priority: priority || existingTask.priority,
       },
     });
 
@@ -184,7 +229,10 @@ const getUserTask = async (req, res) => {
     console.error('Error fetching tasks for user', error);
     res.status(500).json({ error: 'Failed to fetch tasks for user' });
   }
-};
+}
+
+
+
 
 // Routes
 router.get('/tasks', getAllTasks);
