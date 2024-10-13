@@ -6,6 +6,7 @@ dotenv.config();
 const prisma = new PrismaClient();
 const router = express.Router();
 
+// Middleware to check if the user is an admin
 const checkAdmin = (req, res, next) => {
   const { role } = req.user;
   if (role !== 'ADMIN') {
@@ -14,42 +15,41 @@ const checkAdmin = (req, res, next) => {
   next();
 };
 
-
-
+// Get all tasks with optional filters, sorting, and pagination
 const getAllTasks = async (req, res) => {
-  const { status, sortBy, order = 'asc', page = 1, limit = 10, search } = req.query;
+  const { status, sortBy = 'createdAt', order = 'asc', page = 1, limit = 10, search } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
   const orderOptions = {
     dueDate: 'dueDate',
     createdAt: 'createdAt',
     status: 'status',
+    userId: 'userId',
+    recurring: 'recurring',
+    priority: 'priority',
   };
 
   try {
     const tasks = await prisma.task.findMany({
       where: {
         ...(status && { status }), // Filter by status if provided
-        ...(search && { // Add search functionality
+        ...(search && {
           OR: [
-            { title: { contains: search, mode: 'insensitive' } }, // Search in title
-            { description: { contains: search, mode: 'insensitive' } }, // Search in description
-            { userId: { equals: Number(search) } }, // Search by userId
-            { status: { contains: search, mode: 'insensitive' } }, // Search by status
-            { dueDate: {equals: new Date(search)} }, // Search by dueDate
-            { createdAt: {equals: new Date(search)} }, // Search by createdAt
-            { recurring: { contains: search, mode: 'insensitive' } }, // Search by recurring
-            { priority: { contains: search, mode: 'insensitive' } }, // Search by priority
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+            { userId: { equals: Number(search) } },
+            { recurring: { contains: search, mode: 'insensitive' } },
+            { priority: { contains: search, mode: 'insensitive' } },
+            // For date filters, ensure search is a valid date format
+            ...(new Date(search) instanceof Date && !isNaN(new Date(search).getTime()) ? [
+              { dueDate: { equals: new Date(search) } },
+              { createdAt: { equals: new Date(search) } },
+            ] : []),
           ],
         }),
       },
       orderBy: {
         [orderOptions[sortBy] || 'createdAt']: order,
-        [orderOptions[sortBy] || 'status']: order,
-        [orderOptions[sortBy] || 'userId']: order,
-        [orderOptions[sortBy] || 'dueDate']: order,
-        [orderOptions[sortBy] || 'recurring']: order,
-        [orderOptions[sortBy] || 'priority']: order,
       },
       skip,
       take: Number(limit),
@@ -63,11 +63,12 @@ const getAllTasks = async (req, res) => {
             { title: { contains: search, mode: 'insensitive' } },
             { description: { contains: search, mode: 'insensitive' } },
             { userId: { equals: Number(search) } },
-            { status: { contains: search, mode: 'insensitive' } },
-            { dueDate: {equals: new Date(search)} },
-            { createdAt: {equals: new Date(search)} },
             { recurring: { contains: search, mode: 'insensitive' } },
             { priority: { contains: search, mode: 'insensitive' } },
+            ...(new Date(search) instanceof Date && !isNaN(new Date(search).getTime()) ? [
+              { dueDate: { equals: new Date(search) } },
+              { createdAt: { equals: new Date(search) } },
+            ] : []),
           ],
         }),
       },
@@ -84,7 +85,6 @@ const getAllTasks = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch tasks' });
   }
 };
-
 
 // Get a task by ID
 const getTaskById = async (req, res) => {
@@ -109,17 +109,19 @@ const getTaskById = async (req, res) => {
 
 // Create a new task
 const createTask = async (req, res) => {
-  const { title, description, dueDate, status, userId,priority, recurring } = req.body;
+  const { title, description, dueDate, status, userId, priority, recurring } = req.body;
+
+  // Ensure title and userId are provided
+  if (!title || !userId) {
+    return res.status(400).json({ error: 'Title and User ID are required' });
+  }
+
+  const parsedDueDate = dueDate ? new Date(dueDate) : null;
+  if (dueDate && isNaN(parsedDueDate.getTime())) {
+    return res.status(400).json({ error: 'Valid due date is required' });
+  }
+
   try {
-    if (!title || !userId) {
-      return res.status(400).json({ error: 'Title and User ID are required' });
-    }
-
-    const parsedDueDate = dueDate ? new Date(dueDate) : null;
-    if (dueDate && isNaN(parsedDueDate.getTime())) {
-      return res.status(400).json({ error: 'Valid due date is required' });
-    }
-
     const newTask = await prisma.task.create({
       data: {
         title,
@@ -132,7 +134,6 @@ const createTask = async (req, res) => {
         priority: priority || 'low',
       },
     });
-
     res.status(201).json(newTask);
   } catch (error) {
     console.error('Error creating task', error);
@@ -143,7 +144,7 @@ const createTask = async (req, res) => {
 // Update a task by ID
 const updateTask = async (req, res) => {
   const { id } = req.params;
-  const { title, description, dueDate, status,recurring,priority } = req.body;
+  const { title, description, dueDate, status, recurring, priority } = req.body;
 
   try {
     const existingTask = await prisma.task.findUnique({
@@ -231,16 +232,13 @@ const getUserTask = async (req, res) => {
   }
 }
 
-
-
-
 // Routes
-router.get('/tasks', getAllTasks);
-router.get('/tasks/:id', getTaskById);
+router.get('/', getAllTasks);
+router.get('/:id', getTaskById);  // Fixed the route to match /:id instead of /tasks/:id
 router.get('/user/:userId/tasks', getUserTask);
-router.post('/tasks', createTask);
-router.put('/tasks/:id', updateTask);
-router.patch('/tasks/:id/complete', markTaskAsCompleted);
-router.delete('/tasks/:id', checkAdmin, deleteTask);
+router.post('/', createTask);      // Changed to match the base route
+router.put('/:id', updateTask);    // Changed to match the base route
+router.patch('/:id/complete', markTaskAsCompleted); // Changed to match the base route
+router.delete('/:id', checkAdmin, deleteTask); // Changed to match the base route
 
 export default router;

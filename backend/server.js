@@ -2,7 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import authRoutes from './src/api/auth.js';
-import profileRoutes from './src/api/profile.js';
+import userRoutes from './src/api/user.js';
 import taskRoutes from './src/api/tasks.js';
 
 dotenv.config();
@@ -19,7 +19,7 @@ app.get('/', (req, res) => {
 
 
 app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes);
+app.use('/api/user', userRoutes);
 app.use('/api/tasks', taskRoutes);
 
 app.listen(port, () => {

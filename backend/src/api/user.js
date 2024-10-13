@@ -30,8 +30,8 @@ const authToken = async (req, res, next) => {
     }
 };
 
-// Endpoint to get user profile
-const getProfile = async (req, res) => {
+// Endpoint to get user user
+const getuser = async (req, res) => {
     try {
         const user = await prisma.user.findUnique({
             where: { id: req.user.id },
@@ -41,15 +41,35 @@ const getProfile = async (req, res) => {
         }
         res.json(user); // Send the user data as a response
     } catch (error) {
-        console.error('Error fetching user profile', error);
+        console.error('Error fetching user user', error);
         res.sendStatus(500); // Internal server error
     }
 };
 
-// Endpoint to update user profile
-const updateProfile = async (req, res) => {
+const createuser = async (req, res) => {
     const { name, email, password } = req.body;
-    console.log('Update profile for user:', req.user.id);
+    console.log('Create user for user:', email);
+
+    const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
+    try {
+        const newUser = await prisma.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+            },
+        });
+        res.json(newUser); // Send the new user data as a response
+    } catch (error) {
+        console.error('Error creating user user:', error);
+        res.status(500).json({ error: error.message }); // Internal server error
+    }
+}
+
+// Endpoint to update user user
+const updateuser = async (req, res) => {
+    const { name, email, password } = req.body;
+    console.log('Update user for user:', req.user.id);
 
     const updateData = {};
     if (name) updateData.name = name; // Add name if provided
@@ -65,13 +85,14 @@ const updateProfile = async (req, res) => {
         });
         res.json(updatedUser); // Send the updated user data as a response
     } catch (error) {
-        console.error('Error updating user profile:', error);
+        console.error('Error updating user user:', error);
         res.status(500).json({ error: error.message }); // Internal server error
     }
 };
 
 // Define routes
-router.get('/profile', authToken, getProfile); // Get user profile
-router.put('/profile', authToken, updateProfile); // Update user profile
+router.post('/user', createuser); // Create a new user user
+router.get('/user', authToken, getuser); // Get user user
+router.put('/user', authToken, updateuser); // Update user user
 
 export default router; // Export the router for use in the main application

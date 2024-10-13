@@ -16,6 +16,8 @@ model Task {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   userId      Int // Foreign key to User
+  recurring String?
+  priority String?
   user        User      @relation(fields: [userId], references: [id])
 }
 
