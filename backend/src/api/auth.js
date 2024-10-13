@@ -103,6 +103,16 @@ const login = async (req, res) => {
     }
 };
 
+const logout = async (req, res) => {
+    // Implement logout functionality
+    res.sendStatus(200);
+};
+
+const refreshToken = async (req, res) => {
+    // Implement refresh token functionality
+    res.sendStatus(200);
+};
+
 // Register routes for user registration and login
 router.post('/register', register);
 router.post('/login', login);
