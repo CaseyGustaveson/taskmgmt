@@ -47,24 +47,22 @@ const getuser = async (req, res) => {
 };
 
 const createuser = async (req, res) => {
-    const { name, email, password } = req.body;
-    console.log('Create user for user:', email);
+    console.log('Received request to create user:', req.body); // Add this log
 
-    const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
+    const { name, email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     try {
         const newUser = await prisma.user.create({
-            data: {
-                name,
-                email,
-                password: hashedPassword,
-            },
+            data: { name, email, password: hashedPassword },
         });
-        res.json(newUser); // Send the new user data as a response
+        res.json(newUser);
     } catch (error) {
-        console.error('Error creating user user:', error);
-        res.status(500).json({ error: error.message }); // Internal server error
+        console.error('Error creating user:', error);
+        res.status(500).json({ error: error.message });
     }
-}
+};
+
 
 // Endpoint to update user user
 const updateuser = async (req, res) => {
@@ -91,8 +89,8 @@ const updateuser = async (req, res) => {
 };
 
 // Define routes
-router.post('/user', createuser); // Create a new user user
-router.get('/user', authToken, getuser); // Get user user
-router.put('/user', authToken, updateuser); // Update user user
+router.post('/', createuser); // Create a new user user
+router.get('/', authToken, getuser); // Get user user
+router.put('/', authToken, updateuser); // Update user user
 
 export default router; // Export the router for use in the main application
