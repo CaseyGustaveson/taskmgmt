@@ -16,20 +16,22 @@ model Task {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   userId      Int // Foreign key to User
-  recurring String?
-  priority String?
+  recurring   String?
+  priority    String @default("low")
   user        User      @relation(fields: [userId], references: [id])
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique // Make email unique for authentication
-  password  String
-  name      String?
-  tasks     Task[] // Relation to tasks
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+    id        Int      @id @default(autoincrement())
+    name      String
+    email     String   @unique
+    password  String
+    role      String   @default("USER") // Use double quotes for default value
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    tasks     Task[]
 }
+
 
 
 

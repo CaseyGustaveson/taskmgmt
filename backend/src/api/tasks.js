@@ -1,12 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import express from 'express';
+import { authToken } from './auth.js';
+import { isAdmin } from './auth.js';
 
 dotenv.config();
 const prisma = new PrismaClient();
 const router = express.Router();
 
-// Middleware to check if the user is an admin
 const checkAdmin = (req, res, next) => {
   const { role } = req.user;
   if (role !== 'ADMIN') {
@@ -15,7 +16,6 @@ const checkAdmin = (req, res, next) => {
   next();
 };
 
-// Get all tasks with optional filters, sorting, and pagination
 const getAllTasks = async (req, res) => {
   const { status, sortBy = 'createdAt', order = 'asc', page = 1, limit = 10, search } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
@@ -32,7 +32,7 @@ const getAllTasks = async (req, res) => {
   try {
     const tasks = await prisma.task.findMany({
       where: {
-        ...(status && { status }), // Filter by status if provided
+        ...(status && { status }),
         ...(search && {
           OR: [
             { title: { contains: search, mode: 'insensitive' } },
@@ -40,7 +40,6 @@ const getAllTasks = async (req, res) => {
             { userId: { equals: Number(search) } },
             { recurring: { contains: search, mode: 'insensitive' } },
             { priority: { contains: search, mode: 'insensitive' } },
-            // For date filters, ensure search is a valid date format
             ...(new Date(search) instanceof Date && !isNaN(new Date(search).getTime()) ? [
               { dueDate: { equals: new Date(search) } },
               { createdAt: { equals: new Date(search) } },
@@ -86,7 +85,6 @@ const getAllTasks = async (req, res) => {
   }
 };
 
-// Get a task by ID
 const getTaskById = async (req, res) => {
   const { id } = req.params;
   if (!id || isNaN(id)) {
@@ -107,11 +105,9 @@ const getTaskById = async (req, res) => {
   }
 };
 
-// Create a new task
 const createTask = async (req, res) => {
   const { title, description, dueDate, status, userId, priority, recurring } = req.body;
 
-  // Ensure title and userId are provided
   if (!title || !userId) {
     return res.status(400).json({ error: 'Title and User ID are required' });
   }
@@ -141,7 +137,6 @@ const createTask = async (req, res) => {
   }
 };
 
-// Update a task by ID
 const updateTask = async (req, res) => {
   const { id } = req.params;
   const { title, description, dueDate, status, recurring, priority } = req.body;
@@ -173,7 +168,6 @@ const updateTask = async (req, res) => {
   }
 };
 
-// Delete a task by ID
 const deleteTask = async (req, res) => {
   const { id } = req.params;
   try {
@@ -196,7 +190,6 @@ const deleteTask = async (req, res) => {
   }
 };
 
-// Mark a task as completed
 const markTaskAsCompleted = async (req, res) => {
   const { id } = req.params;
 
@@ -218,7 +211,6 @@ const markTaskAsCompleted = async (req, res) => {
   }
 };
 
-// Get tasks for a specific user
 const getUserTask = async (req, res) => {
   const { userId } = req.params;
   try {
@@ -232,13 +224,13 @@ const getUserTask = async (req, res) => {
   }
 }
 
-// Routes
+router.use(authToken); // Apply the authToken middleware to all routes
 router.get('/', getAllTasks);
-router.get('/:id', getTaskById);  // Fixed the route to match /:id instead of /tasks/:id
+router.get('/:id', getTaskById);
 router.get('/user/:userId/tasks', getUserTask);
-router.post('/', createTask);      // Changed to match the base route
-router.put('/:id', updateTask);    // Changed to match the base route
-router.patch('/:id/complete', markTaskAsCompleted); // Changed to match the base route
-router.delete('/:id', checkAdmin, deleteTask); // Changed to match the base route
+router.post('/', createTask);
+router.put('/:id', updateTask);
+router.patch('/:id/complete', markTaskAsCompleted);
+router.delete('/:id', checkAdmin, deleteTask);
 
 export default router;

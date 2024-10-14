@@ -14,21 +14,34 @@ const authToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if (!token) return res.sendStatus(401); // No token, return 401 Unauthorized
+    if (!token) {
+        console.log('No token provided');
+        return res.sendStatus(401); // No token, return 401 Unauthorized
+    }
     try {
         const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET); // Verify token
+        console.log('Decoded token:', decoded); // Log decoded token
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
         });
-        if (!user) return res.sendStatus(403); // User not found, return 403 Forbidden
+        console.log('Retrieved user:', user); // Log retrieved user
+        if (!user) {
+            console.log('User not found');
+            return res.sendStatus(403); // User not found, return 403 Forbidden
+        }
 
-        req.user = user; // Attach user to request
+        req.user = {
+            ...user,
+            role: decoded.role,
+        };
+        console.log('User authenticated:', req.user); // Log the authenticated user
         next(); // Proceed to the next middleware
     } catch (error) {
-        console.error('Error verifying token:', error);
-        res.sendStatus(403); // Token verification failed, return 403 Forbidden
+        console.error('Error verifying token', error);
+        res.sendStatus(403);
     }
 };
+
 
 // Endpoint to get user user
 const getuser = async (req, res) => {
@@ -49,12 +62,12 @@ const getuser = async (req, res) => {
 const createuser = async (req, res) => {
     console.log('Received request to create user:', req.body); // Add this log
 
-    const { name, email, password } = req.body;
+    const { name, email, password,role } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
 
     try {
         const newUser = await prisma.user.create({
-            data: { name, email, password: hashedPassword },
+            data: { name, email, password: hashedPassword, role},
         });
         res.json(newUser);
     } catch (error) {
@@ -63,9 +76,28 @@ const createuser = async (req, res) => {
     }
 };
 
+const role = async (req, res) => {
+    const { role } = req.body;
+    console.log('Update role for user:', req.user.id);
+
+    try {
+        const updatedUser = await prisma.user.update({
+            where: { id: req.user.id },
+            data: { role },
+        });
+        res.json(updatedUser);
+    } catch (error) {
+        console.error('Error updating user role:', error);
+        res.status(500).json({ error: error.message });
+    }
+}
+
 
 // Endpoint to update user user
 const updateuser = async (req, res) => {
+    if (!req.user || !req.user.role) {
+        return res.status(403).json({ error: 'User not authenticated or role missing' });
+    }
     const { name, email, password } = req.body;
     console.log('Update user for user:', req.user.id);
 
@@ -76,6 +108,8 @@ const updateuser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
         updateData.password = hashedPassword; // Add hashed password to update data
     }
+    if (role && req.user.role === 'ADMIN') {
+        updateData.role = role;
     try {
         const updatedUser = await prisma.user.update({
             where: { id: req.user.id },
@@ -86,11 +120,13 @@ const updateuser = async (req, res) => {
         console.error('Error updating user user:', error);
         res.status(500).json({ error: error.message }); // Internal server error
     }
-};
+}
+}
 
 // Define routes
 router.post('/', createuser); // Create a new user user
 router.get('/', authToken, getuser); // Get user user
 router.put('/', authToken, updateuser); // Update user user
+router.post('/role', authToken, role); // Update user role
 
 export default router; // Export the router for use in the main application
