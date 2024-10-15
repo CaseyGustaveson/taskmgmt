@@ -11,16 +11,18 @@ const router = express.Router(); // Create a new Express router for handling rou
 
 // Middleware to authenticate a user based on the provided token
 export const authToken = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
+    const authHeader = req.headers['authorization']; // Get the 'Authorization' header
+    const token = authHeader && authHeader.split(' ')[1]; // Extract the token from the header
 
     if (!token) {
         console.log('No token provided');
         return res.sendStatus(401); // No token, return 401 Unauthorized
     }
     try {
-        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET); // Verify token
-        console.log('Decoded token:', decoded); // Log decoded token
+        const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET); // Verify token using the secret
+        console.log('Decoded token:', decoded); // Log decoded token for debugging
+
+        // Look up the user in the database using the decoded userId from the token
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
         });
@@ -30,21 +32,20 @@ export const authToken = async (req, res, next) => {
             return res.sendStatus(403); // User not found, return 403 Forbidden
         }
 
-        // Ensure the role is attached to req.user
+        // Attach the user's data (id, name, email, role) to req.user for access in future requests
         req.user = {
             id: user.id,
             name: user.name,
             email: user.email,
             role: decoded.role, // Include role from decoded token
         };
-        console.log('User authenticated:', req.user); // Log the authenticated user
+        console.log('User authenticated:', req.user); // Log the authenticated user details
         next(); // Proceed to the next middleware
     } catch (error) {
-        console.error('Error verifying token', error);
-        res.sendStatus(403);
+        console.error('Error verifying token', error); // Log token verification errors
+        res.sendStatus(403); // Return 403 Forbidden if token verification fails
     }
 };
-
 
 // Middleware to check if the user has admin privileges
 export const isAdmin = (req, res, next) => {
@@ -60,6 +61,7 @@ export const isAdmin = (req, res, next) => {
 const register = async (req, res) => {
     console.log('Request Body', req.body); // Log the request body for debugging
     const { email, password, name, role } = req.body; // Destructure fields from the request body
+
     // Check if required fields are present
     if (!email || !password || !name) {
         return res.status(400).json({ error: 'Missing required fields' }); // Send a 400 Bad Request response if fields are missing
@@ -73,12 +75,12 @@ const register = async (req, res) => {
                 email,
                 password: hashedPassword,
                 name,
-                role: role || 'USER' // Default role is 'USER' if not provided
+                role: role || 'USER', // Default role is 'USER' if not provided
             },
         });
         // Create a token for the newly registered user
         const token = jwt.sign({ userId: user.id, role: user.role }, process.env.ACCESS_TOKEN_SECRET, {
-            expiresIn: '1h', 
+            expiresIn: '1h', // Token will expire in 1 hour
         });
         res.status(201).json({ token }); // Send the token back to the client with a 201 Created response
     } catch (error) {
@@ -89,14 +91,17 @@ const register = async (req, res) => {
 
 // Endpoint for user login
 const login = async (req, res) => {
-    const { email, password } = req.body; 
+    const { email, password } = req.body; // Extract email and password from the request body
     try {
+        // Find the user by email in the database
         const user = await prisma.user.findUnique({
             where: { email },
         });
-        if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+        if (!user) return res.status(401).json({ error: 'Invalid email or password' }); // Return 401 if no user is found
+
+        // Compare the provided password with the stored hashed password
         const passwordMatch = await bcrypt.compare(password, user.password);
-        if (!passwordMatch) return res.status(401).json({ error: 'Invalid email or password' });
+        if (!passwordMatch) return res.status(401).json({ error: 'Invalid email or password' }); // Return 401 if password doesn't match
 
         // Create a token for the logged-in user
         const token = jwt.sign({ userId: user.id, role: user.role }, process.env.ACCESS_TOKEN_SECRET, {
@@ -109,21 +114,22 @@ const login = async (req, res) => {
     }
 };
 
+// Endpoint for user logout (Placeholder - not implemented)
 const logout = async (req, res) => {
     // Implement logout functionality
-    res.sendStatus(200);
+    res.sendStatus(200); // Send 200 OK status (Placeholder)
 };
 
+// Endpoint for refreshing the token (Placeholder - not implemented)
 const refreshToken = async (req, res) => {
     // Implement refresh token functionality
-    res.sendStatus(200);
+    res.sendStatus(200); // Send 200 OK status (Placeholder)
 };
 
 // Register routes for user registration and login
-router.post('/register', register);
-router.post('/login', login);
-router.post('/logout', logout);
-router.post('/refresh', refreshToken);
-
+router.post('/register', register); // Route for user registration
+router.post('/login', login); // Route for user login
+router.post('/logout', logout); // Route for user logout (Placeholder)
+router.post('/refresh', refreshToken); // Route for refreshing token (Placeholder)
 
 export default router; // Export the router for use in the main application
